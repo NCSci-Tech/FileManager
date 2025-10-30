@@ -1,9 +1,71 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dirent.h>
+#include <sys/stat.h>
 
-// Function to print the title sequence
-void titleSequence() {
+#define BLUE   "\033[1;34m"
+#define GREEN  "\033[1;32m"
+#define YELLOW "\033[1;33m"
+#define RED    "\033[1;31m"
+#define RESET  "\033[0m"
+
+void titleSequence(void);
+
+char *getF(void);
+void readF(const char *filename);
+void writeF(const char *filename);
+void appendF(const char *filename);
+void listDir(void);
+void delFile(const char *filename);
+
+int main(void) {
+    printf(BLUE);
+    titleSequence();
+    printf(RESET);
+
+    while (1) {
+        int op;
+        printf(GREEN
+            "__________________\n"
+            "Options:\n"
+            "1. Read\n"
+            "2. Write\n"
+            "3. Append\n"
+            "4. List Directory\n"
+            "5. Delete File\n"
+            "6. Exit\n"
+            "Option: "
+            RESET);
+
+        if (scanf("%d", &op) != 1) {
+            while (getchar() != '\n');
+            printf(RED "Invalid input! Please enter a number.\n" RESET);
+            continue;
+        }
+        getchar(); // consume newline
+
+        if (op == 1)
+            readF(getF());
+        else if (op == 2)
+            writeF(getF());
+        else if (op == 3)
+            appendF(getF());
+        else if (op == 4)
+            listDir();
+        else if (op == 5)
+            delFile(getF());
+        else if (op == 6)
+            break;
+        else
+            printf(RED "Invalid input!\n" RESET);
+    }
+
+    printf("\n" BLUE "Goodbye!\n" RESET);
+    return 0;
+}
+
+void titleSequence(void) {
     puts(
         "_____________________________________________________\n"
         "||_________________________________________________||\n"
@@ -17,236 +79,160 @@ void titleSequence() {
     );
 }
 
-// Function to get the file name from user input
-char *getFile(void) {
-    size_t size = 16;  // Initial buffer size
-    size_t len = 0;    // Length of the input string
-    char *buffer = malloc(size);  // Allocate memory for the buffer
-
-    if (!buffer) {
-        perror("malloc");  // Error if memory allocation fails
+char *getF(void) {
+    static char filename[256];
+    printf(YELLOW "Enter Filename: " RESET);
+    if (fgets(filename, sizeof(filename), stdin) == NULL) {
+        printf(RED "Error reading filename!\n" RESET);
         return NULL;
     }
 
+    size_t len = strlen(filename);
+    if (len > 0 && filename[len - 1] == '\n')
+        filename[len - 1] = '\0';
+
+    if (strlen(filename) == 0) {
+        printf(RED "No filename entered!\n" RESET);
+        return NULL;
+    }
+
+    return filename;
+}
+
+void readF(const char *filename) {
+    printf("____________________\n");
+    if (!filename) return;
+
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        perror("Error opening file for reading");
+        return;
+    }
+
+    printf(YELLOW "Reading file: %s\n" RESET, filename);
     int c;
-    // Read characters until EOF or newline is encountered
-    while ((c = getchar()) != EOF && c != '\n') {
-        buffer[len++] = c;
+    while ((c = fgetc(file)) != EOF)
+        putchar(c);
+    fclose(file);
+    printf("\n____________________\n");
+}
 
-        // If the buffer is full, double its size and reallocate memory
-        if (len >= size) {
-            size *= 2;
-            char *new_buffer = realloc(buffer, size);
-            if (!new_buffer) {
-                perror("realloc");  // Error if realloc fails
-                free(buffer);       // Free the original buffer
-                return NULL;
-            }
-            buffer = new_buffer;
+void writeF(const char *filename) {
+    if (!filename) return;
+
+    struct stat st;
+    if (stat(filename, &st) == 0) { // file exists
+        printf(YELLOW "File '%s' exists. Overwrite? (y/n): " RESET, filename);
+        int confirm = getchar();
+        while (getchar() != '\n' && !feof(stdin));
+        if (confirm != 'y' && confirm != 'Y') {
+            printf(RED "Write canceled.\n" RESET);
+            return;
         }
     }
 
-    buffer[len] = '\0';  // Null-terminate the string
-    return buffer;
-}
-
-// Function to list the contents of the current directory
-void listDir(void) {
-    printf("Listing current directory contents:\n\n");
-
-    // Platform-specific directory listing
-#ifdef _WIN32
-    system("dir");  // Windows
-#else
-    system("ls -l");  // Unix/Linux/macOS
-#endif
-
-    printf("\n");
-}
-
-// Function to read the contents of a file
-void readF() {
-    printf("Enter file name: ");
-    char *fName = getFile();  // Get the file name from the user
-    if (!fName) {
-        fprintf(stderr, "ERROR: failed to read file name!\n");
-        return;
-    }
-    if (strlen(fName) == 0) {
-        printf("No file name entered.\n");
-        free(fName);  // Free the allocated memory
+    FILE *file = fopen(filename, "w");
+    if (!file) {
+        perror("Error opening file for writing");
         return;
     }
 
-    FILE *fptr = fopen(fName, "r");  // Open the file for reading
-    if (!fptr) {
-        perror("Error opening file");
-        free(fName);  // Free the allocated memory
-        return;
-    }
-
-    // Print the contents of the file
-    printf("\n");
-    int ch;
-    while ((ch = fgetc(fptr)) != EOF) {
-        putchar(ch);  // Output each character
-    }
-
-    fclose(fptr);  // Close the file
-    free(fName);   // Free the allocated memory
-}
-
-// Function to create a new file and write to it
-void writeF(void) {
-    printf("Enter file name: ");
-    char *fName = getFile();  // Get the file name from the user
-    if (!fName) {
-        fprintf(stderr, "ERROR: failed to read file name!\n");
-        return;
-    }
-    if (strlen(fName) == 0) {
-        printf("No file name entered.\n");
-        free(fName);  // Free the allocated memory
-        return;
-    }
-
-    FILE *fptr = fopen(fName, "w");  // Open the file for writing
-    if (!fptr) {
-        perror("Error creating file");
-        free(fName);  // Free the allocated memory
-        return;
-    }
-
-    printf("Enter text to write (end with an empty line):\n");
-    // Read lines from the user and write them to the file
+    printf(YELLOW "Writing to file: %s\n" RESET, filename);
+    printf(YELLOW "Enter text to write (end with a single '.' on a line):\n" RESET);
+    char buffer[256];
     while (1) {
-        char *line = getFile();
-        if (!line || strlen(line) == 0) {  // Empty line ends input
-            free(line);
+        if (!fgets(buffer, sizeof(buffer), stdin))
             break;
-        }
-        fprintf(fptr, "%s\n", line);  // Write the line to the file
-        free(line);  // Free the allocated memory for the line
+        if (buffer[0] == '.' && buffer[1] == '\n')
+            break;
+        fputs(buffer, file);
     }
 
-    fclose(fptr);  // Close the file
-    printf("File written successfully.\n");
-    free(fName);  // Free the allocated memory for the file name
+    fclose(file);
+    printf(GREEN "File write successful\n" RESET);
 }
 
-// Function to append text to an existing file
-void appendF(void) {
-    printf("Enter file name: ");
-    char *fName = getFile();  // Get the file name from the user
-    if (!fName) {
-        fprintf(stderr, "ERROR: failed to read file name!\n");
-        return;
-    }
-    if (strlen(fName) == 0) {
-        printf("No file name entered.\n");
-        free(fName);  // Free the allocated memory
-        return;
-    }
-
-    FILE *fptr = fopen(fName, "a");  // Open the file for appending
-    if (!fptr) {
+void appendF(const char *filename) {
+    if (!filename) return;
+    FILE *file = fopen(filename, "a");
+    if (!file) {
         perror("Error opening file for append");
-        free(fName);  // Free the allocated memory
         return;
     }
 
-    printf("Enter text to append (end with an empty line):\n");
-    // Read lines from the user and append them to the file
+    printf(YELLOW "Appending to file: %s\n" RESET, filename);
+    printf(YELLOW "Enter text to append (end with a single '.' on a line):\n" RESET);
+    char buffer[256];
     while (1) {
-        char *line = getFile();
-        if (!line || strlen(line) == 0) {  // Empty line ends input
-            free(line);
+        if (!fgets(buffer, sizeof(buffer), stdin))
             break;
-        }
-        fprintf(fptr, "%s\n", line);  // Append the line to the file
-        free(line);  // Free the allocated memory for the line
+        if (buffer[0] == '.' && buffer[1] == '\n')
+            break;
+        fputs(buffer, file);
     }
 
-    fclose(fptr);  // Close the file
-    printf("Text appended successfully.\n");
-    free(fName);  // Free the allocated memory for the file name
+    fclose(file);
+    printf(GREEN "File append successful\n" RESET);
 }
 
-// Function to delete a file
-void delFile() {
-    printf("Enter file name: ");
-    char *fName = getFile();  // Get the file name from the user
-    if (!fName) {
-        fprintf(stderr, "ERROR: failed to read file name!\n");
-        return;
-    }
-    if (strlen(fName) == 0) {
-        printf("No file name entered.\n");
-        free(fName);  // Free the allocated memory
+int cmpStrings(const void *a, const void *b) {
+    return strcmp(*(const char **)a, *(const char **)b);
+}
+
+void listDir(void) {
+    printf(GREEN "Listing current directory contents:\n\n" RESET);
+    DIR *d = opendir(".");
+    if (!d) {
+        perror("Error opening current directory");
         return;
     }
 
-    // Ask for confirmation to delete the file
-    printf("Are you sure you want to delete '%s'? (y/n): ", fName);
+    struct dirent *dir;
+    char *names[512];
+    int count = 0;
+
+    while ((dir = readdir(d)) != NULL && count < 512) {
+        names[count++] = strdup(dir->d_name);
+    }
+    closedir(d);
+
+    qsort(names, count, sizeof(char *), cmpStrings);
+
+    for (int i = 0; i < count; i++) {
+        struct stat st;
+        if (stat(names[i], &st) == 0) {
+            if (S_ISDIR(st.st_mode))
+                printf(BLUE "%s/\n" RESET, names[i]);
+            else if (st.st_mode & S_IXUSR)
+                printf(YELLOW "%s*\n" RESET, names[i]);
+            else
+                printf(GREEN "%s\n" RESET, names[i]);
+        } else {
+            printf(RED "%s ?\n" RESET, names[i]);
+        }
+        free(names[i]);
+    }
+    printf("\n");
+}
+
+
+void delFile(const char *filename) {
+    if (!filename || strlen(filename) == 0) {
+        fprintf(stderr, RED "No valid filename entered!\n" RESET);
+        return;
+    }
+
+    printf(YELLOW "Are you sure you want to delete '%s'? (y/n): " RESET, filename);
     int confirm = getchar();
-    while (getchar() != '\n');  // Clear the newline from the input buffer
+    while (getchar() != '\n' && !feof(stdin));
+
     if (confirm != 'y' && confirm != 'Y') {
-        printf("Delete canceled.\n");
-        free(fName);  // Free the allocated memory
+        printf(RED "Delete canceled.\n" RESET);
         return;
     }
 
-    // Delete the file
-    if (remove(fName) == 0) {
-        printf("File deleted successfully.\n");
-    } else {
-        printf("Error: Unable to delete the file.\n");
-    }
-
-    free(fName);  // Free the allocated memory for the file name
-}
-
-int main(void) {
-    titleSequence();  // Display the title sequence
-
-    while (1) {
-        printf("\n");
-        puts(
-            "________________\n"
-            "|1. read\n"
-            "|2. write\n"
-            "|3. append\n"
-            "|4. delete\n"
-            "|5. list directory\n"
-            "|6. Quit"
-        );
-
-        printf("|Option: ");
-
-        char input[16];  // Buffer to store user input (enough for one char + newline)
-        if (!fgets(input, sizeof(input), stdin)) {
-            // If fgets fails, exit the program
-            puts("\nInput error or EOF. Exiting...");
-            break;
-        }
-
-        // Remove newline if present
-        input[strcspn(input, "\n")] = '\0';
-
-        // Determine the action based on user input
-        char option = input[0];
-
-        // Execute the corresponding function based on the user's choice
-        switch (option) {
-            case '1': readF(); break;
-            case '2': writeF(); break;
-            case '3': appendF(); break;
-            case '4': delFile(); break;
-            case '5': listDir(); break;
-            case '6': printf("Exiting...\n"); return 0;  // Exit the program
-            default: printf("Invalid option.\n"); break;
-        }
-    }
-
-    return 0;
+    if (remove(filename) == 0)
+        printf(GREEN "File deleted successfully.\n" RESET);
+    else
+        perror("Error deleting file");
 }
